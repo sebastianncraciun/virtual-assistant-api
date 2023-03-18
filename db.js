@@ -6,6 +6,6 @@ initializeApp({
 
 const { getFirestore } = require('firebase-admin/firestore');
 
-const db = getFirestore().collection('defaultCommands').doc();
+const db = getFirestore().collection('defaultCommands');
 
 module.exports = db;

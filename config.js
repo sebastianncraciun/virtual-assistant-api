@@ -25,5 +25,5 @@ module.exports = {
     api_openai_header: {
         'Content-Type': 'application/json',
         'Authorization': TOKEN
-      }
+    }
 }
