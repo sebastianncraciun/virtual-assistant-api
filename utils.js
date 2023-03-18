@@ -24,6 +24,7 @@ function findBestDotProduct(matrix, matrices) {
         if (productValue > bestProductValue) {
         bestProductValue = productValue;
         bestMatrixIndex = matrices[i].index
+        console.log("best index",bestMatrixIndex)
         }
     }
 

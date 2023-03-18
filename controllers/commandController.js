@@ -63,15 +63,15 @@ const addCommand = async (req, res, next) => {
                         for (const id of ids) {
                             const doc = await firebase.doc(id).get();
                             const certificate = doc.data()
-                            
+
                             if (doc.exists) {
                                 const hashes = Object.keys(certificate);
-                                
+
                                 for (const key of hashes) {
                                     const hashObj = certificate[key];
 
-                                    
-                                    if (hashObj && hashObj.hasOwnProperty('plain_text')){
+
+                                    if (hashObj && hashObj.hasOwnProperty('plain_text')) {
                                         //console.log(id)
                                         //console.log(doc.data())
                                         data_for_openai.push(hashObj.plain_text)
@@ -91,7 +91,7 @@ const addCommand = async (req, res, next) => {
                         let bestProductValue = 0
                         let bestMatrixIndex = 0
 
-                        axios.post(config.api_url, data, { headers })
+                        await axios.post(config.api_url, data, { headers })
                             .then(response => {
 
                                 const matrices = response.data.data.filter(elem => elem.index > 0)//.map(elem => elem.embedding);
@@ -105,8 +105,7 @@ const addCommand = async (req, res, next) => {
                                 console.error(error);
                                 res.send({ "failed": error })
                             });
-                        console.log(bestMatrixIndex)
-
+                        let displayedId = ""
                         for (const id of ids) {
                             const doc = await firebase.doc(id).get();
 
@@ -115,10 +114,11 @@ const addCommand = async (req, res, next) => {
                                 const hash_existent_object = crypto.createHash('md5').update(data_for_openai[bestMatrixIndex]).digest('hex');
                                 const hash_new_object = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
                                 if (data.hasOwnProperty(hash_existent_object)) {
+                                    displayedId = id
                                     await firebase.doc(id).update({
                                         [hash_new_object]: {
                                             plain_text: req.body.user_input.plain_text,
-                                            natural_language_interpretation: req.user_input.natural_language_interpretation
+                                            natural_language_interpretation: req.body.user_input.natural_language_interpretation
                                         }
                                     })
                                         .then(() => {
@@ -132,7 +132,7 @@ const addCommand = async (req, res, next) => {
                             }
                         }
 
-                        res.status(200).json({ "success": idCommand });
+                        res.status(200).json({ "success": displayedId });
                     }
                 }
             }
@@ -151,7 +151,6 @@ const getAllDocIds = async (req, res, next) => {
             return {
                 index: index,
                 id: doc.id,
-                name: doc.data().name,
             };
         }));
     } catch (error) {
@@ -159,51 +158,7 @@ const getAllDocIds = async (req, res, next) => {
     }
 }
 
-const getTest = async (req, res, next) => {
-    const md5 = (str) => crypto.createHash('md5').update(str).digest('hex');
-    //const myString ='test string'
-    const hh = md5(req.body.test)
-    // const docRef = await firebase.doc("cbU4PBxxOw4EGCsSZGU7")
-
-    // await docRef.get().then((doc) => {
-    //     if (doc.exists) {
-    //         const data = doc.data();
-    //         console.log(data[hh])
-    //         console.log(data)
-    //         // Check if hash field already exists
-    //         if (data.hasOwnProperty(hh)) {
-    //             console.log(hh)
-    //             res.send({ "data": data[hh] })
-    //         }
-    //     }
-    // }).catch((error) => {
-    //     console.log('Error getting document:', error);
-    // });
-
-    res.send({[hh]: req.body.test})
-}
-
 module.exports = {
     addCommand,
-    getAllDocIds,
-    getTest
+    getAllDocIds
 }
-
-/*
---exemplu input api
-{
-    "user_input":{
-      "plain_text": "go back",
-      "natural_language_interpretation": {}
-    },
-    "screen_actions":["id1","id2","id3","id4"]
-}
-
---exemplu get firestore
-const citiesRef = db.collection('users');
-const snapshot = await citiesRef.get();
-snapshot.forEach(doc => {
-  if(doc.data().hash1)
-    console.log(doc.id, '=>', doc.data());
-});
-*/
