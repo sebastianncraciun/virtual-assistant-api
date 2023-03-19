@@ -166,18 +166,17 @@ const postDefaultAction = async (req, res, next) => {
         if (Object.keys(req.body).length === 0) {
             res.status(400).json({ "failed": "body is missing" })
         } else {
-            if (req.body.user_input == null || req.body.screen_actions == null || req.body.user_input.plain_text == null || req.body.user_input.natural_language_interpretation == null) {
+            if ( req.body.plain_text == null || req.body.natural_language_interpretation == null) {
                 res.status(400).json({ "failed": 'malformed request' })
-            } else if (typeof req.body.user_input.plain_text !== 'string' || req.body.user_input.plain_text === "") {
+            } else if (typeof req.body.plain_text !== 'string' || req.body.plain_text === "") {
                 res.status(400).json({ "failed": "user_input.plain_text should be a non-empty string" })
-            } else if (!Array.isArray(req.body.screen_actions) || !req.body.screen_actions.every(element => typeof element === 'string')) {
-                res.status(400).json({ "failed": "screen_actions should be an array of strings" })
-            } else {
-                const hash_new_object = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
+            }
+            else {
+                const hash_new_object = crypto.createHash('md5').update(req.body.plain_text).digest('hex');
                 const newCertificate = {
                     [hash_new_object]: {
-                        plain_text: req.body.user_input.plain_text,
-                        natural_language_interpretation: req.body.user_input.natural_language_interpretation
+                        plain_text: req.body.plain_text,
+                        natural_language_interpretation: req.body.natural_language_interpretation
                     }
                 };
                 let ref = ""
