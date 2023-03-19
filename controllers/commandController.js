@@ -14,7 +14,7 @@ const addCommand = async (req, res, next) => {
         if (Object.keys(req.body).length === 0) {
             res.status(400).json({ "failed": "body is missing" })
         } else {
-            if (req.body.user_input == null || req.body.screen_actions == null) {
+            if (req.body.user_input == null || req.body.screen_actions == null || req.body.user_input.plain_text == null || req.body.user_input.natural_language_interpretation == null) {
                 res.status(400).json({ "failed": 'malformed request' })
             } else if (typeof req.body.user_input.plain_text !== 'string' || req.body.user_input.plain_text === "") {
                 res.status(400).json({ "failed": "user_input.plain_text should be a non-empty string" })
@@ -40,18 +40,20 @@ const addCommand = async (req, res, next) => {
                     let idCommand = 0;
 
                     // Loop through the specified ids and check if the userInput plain_text matches the input
+                    const dataArray = [];
                     for (const id of ids) {
-                        const doc = await firebase.doc(id).get();
+                        //const doc = await firebase.doc(id).get();
 
-                        if (doc.exists) {
-                            const data = doc.data();
-                            const hash = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
-                            if (data.hasOwnProperty(hash)) {
-                                found = true;
-                                idCommand = id;
-                                break;
-                            }
+
+                        const data = await snapshot.docs.find(doc => doc.id === id).data();
+                        dataArray.push(data);
+                        const hash = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
+                        if (data.hasOwnProperty(hash)) {
+                            found = true;
+                            idCommand = id;
+                            break;
                         }
+
                     }
                     if (found) {
                         res.status(200).json({ "success": idCommand });
@@ -60,26 +62,20 @@ const addCommand = async (req, res, next) => {
 
                         const data_for_openai = []
                         data_for_openai.push(req.body.user_input.plain_text)
-                        for (const id of ids) {
-                            const doc = await firebase.doc(id).get();
-                            const certificate = doc.data()
+                        for (const certificate of dataArray) {
+                            // const doc = await firebase.doc(id).get();
+                            // const certificate = await doc.data()
+                            const hashes = Object.keys(certificate);
 
-                            if (doc.exists) {
-                                const hashes = Object.keys(certificate);
+                            for (const key of hashes) {
+                                const hashObj = certificate[key];
 
-                                for (const key of hashes) {
-                                    const hashObj = certificate[key];
-
-
-                                    if (hashObj && hashObj.hasOwnProperty('plain_text')) {
-                                        //console.log(id)
-                                        //console.log(doc.data())
-                                        data_for_openai.push(hashObj.plain_text)
-                                    }
-
+                                if (hashObj && hashObj.hasOwnProperty('plain_text')) {
+                                    //console.log(id)
+                                    //console.log(doc.data())
+                                    data_for_openai.push(hashObj.plain_text)
                                 }
                             }
-
                         }
                         const data = {
                             model: config.api_model,
@@ -110,7 +106,7 @@ const addCommand = async (req, res, next) => {
                             const doc = await firebase.doc(id).get();
 
                             if (doc.exists) {
-                                const data = doc.data();
+                                const data = await doc.data();
                                 const hash_existent_object = crypto.createHash('md5').update(data_for_openai[bestMatrixIndex]).digest('hex');
                                 const hash_new_object = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
                                 if (data.hasOwnProperty(hash_existent_object)) {
@@ -129,6 +125,7 @@ const addCommand = async (req, res, next) => {
                                         });
                                     break;
                                 }
+
                             }
                         }
 
@@ -138,7 +135,8 @@ const addCommand = async (req, res, next) => {
             }
         }
     } catch (err) {
-        console.log(err)
+        console.warn(err)
+        res.status(500).json({ message: 'server error' })
     }
 }
 
@@ -147,18 +145,76 @@ const getAllDocIds = async (req, res, next) => {
     try {
         const snapshot = await firebase.get();
 
-        res.send(snapshot.docs.map((doc, index) => {
+        const docs = await Promise.all(snapshot.docs.map(async (doc, index) => {
+            const data = await doc.data();
+            const firstElement = Object.values(data)[0];
             return {
                 index: index,
                 id: doc.id,
+                firstPlainText: firstElement.plain_text
             };
         }));
+
+        res.send(docs);
     } catch (error) {
         res.status(400).send(error.message);
     }
 }
 
+const postDefaultAction = async (req, res, next) => {
+    try {
+        if (Object.keys(req.body).length === 0) {
+            res.status(400).json({ "failed": "body is missing" })
+        } else {
+            if (req.body.user_input == null || req.body.screen_actions == null || req.body.user_input.plain_text == null || req.body.user_input.natural_language_interpretation == null) {
+                res.status(400).json({ "failed": 'malformed request' })
+            } else if (typeof req.body.user_input.plain_text !== 'string' || req.body.user_input.plain_text === "") {
+                res.status(400).json({ "failed": "user_input.plain_text should be a non-empty string" })
+            } else if (!Array.isArray(req.body.screen_actions) || !req.body.screen_actions.every(element => typeof element === 'string')) {
+                res.status(400).json({ "failed": "screen_actions should be an array of strings" })
+            } else {
+                const hash_new_object = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
+                const newCertificate = {
+                    [hash_new_object]: {
+                        plain_text: req.body.user_input.plain_text,
+                        natural_language_interpretation: req.body.user_input.natural_language_interpretation
+                    }
+                };
+                let ref = ""
+                await firebase.add(newCertificate)
+                    .then((docRef) => {
+                        ref = docRef.id
+                        console.log("Certificate document written with ID: ", docRef.id);
+                    })
+                    .catch((error) => {
+                        console.error("Error adding certificate document: ", error);
+                    });
+                res.status(200).json({ "success": ref });
+            }
+        }
+    } catch (error) {
+        res.status(400).send(error.message);
+    }
+}
+
+const testRoute = async (req, res, next) => {
+    const snapshot = await firebase.get();
+    //console.log('snapshot', snapshot, '\n') -> array cu toate certificatele din colectie, functii, obiecte specifice acelui certificat etc.
+    //const firestoreIds = snapshot.docs.map((doc) => console.log("Doc", doc.id)); //array cu id-uri din colectie
+    //const doc = await firebase.doc('FfCMtAJosy404vKYVL5o').get(); // -> doar obiectul cu metadata despre un certificat anume (prima metoda returneaza toate cert, asta doar unul)
+    const dataArray = [];
+    const data1 = await snapshot.docs.find(doc => doc.id === 'FfCMtAJosy404vKYVL5o').data();
+    dataArray.push(data1)
+    const data2 = await snapshot.docs.find(doc => doc.id === 'cbU4PBxxOw4EGCsSZGU7').data();
+    dataArray.push(data2)
+    console.log("my certificates", dataArray)
+    console.log("hashes", Object.keys(data1))
+    res.status(200).json({ "success": "bravo coaie" });
+}
+
 module.exports = {
     addCommand,
-    getAllDocIds
+    getAllDocIds,
+    postDefaultAction,
+    testRoute
 }
