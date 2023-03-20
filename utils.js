@@ -26,11 +26,36 @@ function findBestDotProduct(matrix, matrices) {
         bestMatrixIndex = matrices[i].index
         }
     }
-    console.log("best index",bestMatrixIndex)
     return { bestProductValue, bestMatrixIndex };
+}
+
+function validateDynamicScreenActions(input) {
+  if (!Array.isArray(input)) {
+    return false;
+  }
+
+  if(input.length === 0){
+    return false;
+  }
+
+  for (let i = 0; i < input.length; i++) {
+    const action = input[i];
+
+    if (
+      typeof action.dynamicAction !== 'string' ||
+      typeof action.actionDescription !== 'string' ||
+      action.dynamicAction === '' ||
+      action.actionDescription === ''
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 module.exports = {
     dotProduct,
     findBestDotProduct,
+    validateDynamicScreenActions
 };

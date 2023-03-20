@@ -1,0 +1,19 @@
+{
+    "user_input": {
+      "plain_text": "tap tom ford",
+      "natural_language_interpretation": {
+        "test": "trimis acum",
+        "test2": "change"
+      }
+    },
+    "screen_actions": [
+      {
+        "dynamicAction": "sortByFiltersName",
+        "actionDescription": "sort products in ascending order"
+      },
+      {
+        "dynamicAction": "selectProductByName",
+        "actionDescription": "select tom ford"
+      }
+    ]
+  }
