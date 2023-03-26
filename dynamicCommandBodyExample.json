@@ -8,12 +8,12 @@
     },
     "screen_actions": [
       {
-        "dynamicAction": "sortByFiltersName",
-        "actionDescription": "sort products in ascending order"
+        "dynamic_action": "sortByFiltersName",
+        "action_description": "sort products in ascending order"
       },
       {
-        "dynamicAction": "selectProductByName",
-        "actionDescription": "select tom ford"
+        "dynamic_action": "selectProductByName",
+        "action_description": "select tom ford"
       }
     ]
   }

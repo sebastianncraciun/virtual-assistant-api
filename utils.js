@@ -42,10 +42,10 @@ function validateDynamicScreenActions(input) {
     const action = input[i];
 
     if (
-      typeof action.dynamicAction !== 'string' ||
-      typeof action.actionDescription !== 'string' ||
-      action.dynamicAction === '' ||
-      action.actionDescription === ''
+      typeof action.dynamic_action !== 'string' ||
+      typeof action.action_description !== 'string' ||
+      action.dynamic_action === '' ||
+      action.action_description === ''
     ) {
       return false;
     }

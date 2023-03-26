@@ -18,7 +18,7 @@ const selectDefaultCommand = async (req, res, next) => {
         res.status(400).json({ "failed": 'malformed request' })
       } else if (typeof req.body.user_input.plain_text !== 'string' || req.body.user_input.plain_text === "") {
         res.status(400).json({ "failed": "user_input.plain_text should be a non-empty string" })
-      } else if (!Array.isArray(req.body.screen_actions) || !req.body.screen_actions.every(element => typeof element === 'string')) {
+      } else if (!Array.isArray(req.body.screen_actions) || !req.body.screen_actions.every(element => typeof element === 'string') || req.body.screen_actions.length === 0) {
         res.status(400).json({ "failed": "screen_actions should be an array of strings" })
       } else {
         //Check if all the doc ids I receive exists in firestore
@@ -210,11 +210,11 @@ const testRoute = async (req, res, next) => {
 
   for (let i = 0; i < req.body.screen_actions.length; i++) {
 
-    const doc = await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).get();
+    const doc = await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).get();
 
     if (doc.exists) {
       const data = await doc.data();
-      const hash_new_object = crypto.createHash('md5').update(req.body.screen_actions[i].actionDescription).digest('hex');
+      const hash_new_object = crypto.createHash('md5').update(req.body.screen_actions[i].action_description).digest('hex');
       console.log(hash_new_object)
       if(data.hasOwnProperty(hash_new_object)){
       const hashes_plain_texts = Object.keys(data[hash_new_object])
@@ -226,7 +226,7 @@ const testRoute = async (req, res, next) => {
 
       } 
       }else {
-        data_for_openai.push(req.body.screen_actions[i].actionDescription)
+        data_for_openai.push(req.body.screen_actions[i].action_description)
     }}
   }
   const requestOpenAI = {
@@ -250,13 +250,13 @@ const testRoute = async (req, res, next) => {
   const hashUserInput = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
   for (let i = 0; i < req.body.screen_actions.length; i++) {
 
-    const doc = await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).get();
+    const doc = await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).get();
 
     if (doc.exists) {
       const data = await doc.data();
-      const hash_new_object = crypto.createHash('md5').update(req.body.screen_actions[i].actionDescription).digest('hex');
+      const hash_new_object = crypto.createHash('md5').update(req.body.screen_actions[i].action_description).digest('hex');
       const hash_plain_text = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
-      const actionDescription = req.body.screen_actions[i].actionDescription
+      const actionDescription = req.body.screen_actions[i].action_description
 
       // const hashes_plain_texts = Object.keys(data[hash_new_object])
       if (data.hasOwnProperty(hash_new_object)) {
@@ -264,7 +264,7 @@ const testRoute = async (req, res, next) => {
         if (data[hash_new_object].hasOwnProperty(hashMatrMax)) {
           shown_hash = hash_new_object
           //add here and return that md5
-          await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+          await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
             [`${hash_new_object}.${hashUserInput}`]: {
               natural_language_interpretation: req.body.user_input.natural_language_interpretation,
               plain_text: req.body.user_input.plain_text,
@@ -275,7 +275,7 @@ const testRoute = async (req, res, next) => {
       }
       else {
         if (bestProductValue > 0.7) {
-          await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+          await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
             [hash_new_object]: {
               [hash_new_object]: {
                 plain_text: actionDescription
@@ -295,7 +295,7 @@ const testRoute = async (req, res, next) => {
             });
             shown_hash = hash_new_object
         } else {
-          await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+          await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
             [hash_new_object]: {
               [hash_new_object]: {
                 plain_text: actionDescription
@@ -320,7 +320,7 @@ const selectDynamicCommand = async (req, res, next) => {
       } else if (typeof req.body.user_input.plain_text !== 'string' || req.body.user_input.plain_text === "") {
         res.status(400).json({ "failed": "user_input.plain_text should be a non-empty string" })
       } else if (!validateDynamicScreenActions(req.body.screen_actions)) {
-        res.status(400).json({ "failed": "screen_actions should be a non-empty array of dictionaries with 'dynamicAction' and 'actionDescription'" })
+        res.status(400).json({ "failed": "screen_actions should be a non-empty array of dictionaries with 'dynamic_action' and 'action_description'" })
       } else {
         //make the openai request
         let bestMatrixIndex = 0;
@@ -328,16 +328,36 @@ const selectDynamicCommand = async (req, res, next) => {
         const data_for_openai = []
         data_for_openai.push(req.body.user_input.plain_text)
         for (let i = 0; i < req.body.screen_actions.length; i++) {
-          data_for_openai.push(req.body.screen_actions[i].actionDescription)
+          data_for_openai.push(req.body.screen_actions[i].action_description)
         }
+
+        const requestOpenAI = {
+          model: config.api_model,
+          input: data_for_openai
+        }
+        await axios.post(config.api_url, requestOpenAI, { headers })
+          .then(response => {
+      
+            const matrices = response.data.data.filter(elem => elem.index > 0)//.map(elem => elem.embedding);
+            const bestResult = findBestDotProduct(response.data.data[0].embedding, matrices);
+            bestMatrixIndex = bestResult.bestMatrixIndex;
+            bestProductValue = bestResult.bestProductValue;
+            console.log("best prod", bestResult.bestProductValue)
+            console.log("best matr index", bestResult.bestMatrixIndex)
+          })
+          .catch(error => {
+            console.error(error);
+          });
+
+
 
         const snapshot = await dynamicCommands.get();
 
         for (let i = 0; i < req.body.screen_actions.length; i++) {
 
-          if (req.body.screen_actions[i].actionDescription === data_for_openai[bestMatrixIndex]) {
-            const actionDescription = req.body.screen_actions[i].actionDescription;
-            const data = await snapshot.docs.find(doc => doc.id === req.body.screen_actions[i].dynamicAction).data();
+          if (req.body.screen_actions[i].action_description === data_for_openai[bestMatrixIndex]) {
+            const actionDescription = req.body.screen_actions[i].action_description;
+            const data = await snapshot.docs.find(doc => doc.id === req.body.screen_actions[i].dynamic_action).data();
 
             const hashDescription = crypto.createHash('md5').update(actionDescription).digest('hex');
             const hashUserInput = crypto.createHash('md5').update(req.body.user_input.plain_text).digest('hex');
@@ -346,7 +366,7 @@ const selectDynamicCommand = async (req, res, next) => {
             if (!data.hasOwnProperty(hashDescription)) {
 
               if (bestProductValue > 0.7) {
-                await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+                await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
                   [hashDescription]: {
                     [hashDescription]: {
                       plain_text: actionDescription
@@ -359,14 +379,14 @@ const selectDynamicCommand = async (req, res, next) => {
                   }
                 })
                   .then(() => {
-                    console.log('Document updated successfully!');
+                    
                   })
                   .catch((error) => {
                     console.error('Error updating document: ', error);
                   });
                 res.status(200).json({ "success": hashDescription, "dotProduct": bestProductValue });
               } else {
-                await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+                await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
                   [hashDescription]: {
                     [hashDescription]: {
                       plain_text: actionDescription
@@ -376,7 +396,7 @@ const selectDynamicCommand = async (req, res, next) => {
                 res.status(200).json({ "success": hashDescription });
               }
             } else {
-              await dynamicCommands.doc(req.body.screen_actions[i].dynamicAction).update({
+              await dynamicCommands.doc(req.body.screen_actions[i].dynamic_action).update({
                 [`${hashDescription}.${hashUserInput}`]: {
                   natural_language_interpretation: req.body.user_input.natural_language_interpretation,
                   plain_text: req.body.user_input.plain_text,
